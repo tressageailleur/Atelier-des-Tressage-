@@ -201,6 +201,7 @@
       <li><a href="#" data-page="custom">Personnaliser</a></li>
       <li><a href="#" data-page="contact">Contact</a></li>
       <li><a href="#" data-page="tracking">Suivi</a></li>
+      <li><a href="#" data-page="reviews">Avis</a></li>
       <li><a href="#" data-page="cart">Panier</a></li>
     </ul>
     <div style="display:flex; align-items:center; gap:10px;">
@@ -363,6 +364,22 @@
   </div>
 </main>
 
+<main id="page-confirmation" class="page">
+  <div class="wrap" style="padding:80px 0 100px; text-align:center;">
+    <div class="custom-card" style="text-align:center;">
+      <div style="font-size:2.4rem; margin-bottom:10px;">✅</div>
+      <h2 style="margin-top:0;">Commande confirmée</h2>
+      <p style="color:var(--ink-soft);">Merci pour votre commande ! Voici son récapitulatif.</p>
+      <div class="summary-row" style="margin-top:24px;"><span>Numéro de commande</span><span id="confNumber" style="font-weight:600;"></span></div>
+      <div class="summary-row"><span>Livraison estimée</span><span>3 jours</span></div>
+      <div class="summary-row total"><span>Total payé</span><span id="confTotal"></span></div>
+      <p class="pay-note" style="margin-top:20px;">Conservez ce numéro : il vous permet de suivre l'avancement de votre commande à tout moment.</p>
+      <button class="btn btn-primary" style="width:100%; justify-content:center; margin-top:16px;" onclick="goToTrackingWithOrder()">Suivre ma commande</button>
+      <button class="btn btn-outline" style="width:100%; justify-content:center; margin-top:10px;" onclick="goTo('shop')">Retour à la boutique</button>
+    </div>
+  </div>
+</main>
+
 <main id="page-tracking" class="page">
   <div class="wrap" style="padding:60px 0 90px;">
     <div class="section-head">
@@ -381,6 +398,32 @@
   </div>
 </main>
 
+<main id="page-reviews" class="page">
+  <div class="wrap" style="padding:60px 0 90px;">
+    <div class="section-head">
+      <span class="eyebrow">Avis</span>
+      <h2>Avis clients</h2>
+      <p style="color:var(--ink-soft);">Vous avez reçu votre commande ? Partagez votre avis avec votre numéro de commande.</p>
+    </div>
+    <div class="custom-card">
+      <div class="form-row"><label>Numéro de commande</label><input type="text" id="reviewOrderInput" placeholder="Ex : AT-2026-4821"></div>
+      <div class="form-row"><label>Votre prénom</label><input type="text" id="reviewNameInput" placeholder="Votre prénom"></div>
+      <div class="form-row">
+        <label>Note</label>
+        <div class="option-row" id="reviewStars">
+          <div class="opt-pill" data-star="3" onclick="setReviewStars(3)">★★★</div>
+          <div class="opt-pill" data-star="4" onclick="setReviewStars(4)">★★★★</div>
+          <div class="opt-pill selected" data-star="5" onclick="setReviewStars(5)">★★★★★</div>
+        </div>
+      </div>
+      <div class="form-row"><label>Votre avis</label><textarea id="reviewCommentInput" placeholder="Qu'avez-vous pensé de votre bijou ?"></textarea></div>
+      <button class="btn btn-dark" style="width:100%; justify-content:center;" onclick="submitReview()">Publier mon avis</button>
+      <div id="reviewSubmitResult" style="margin-top:14px;"></div>
+    </div>
+    <div id="reviewsList" style="margin-top:40px;"></div>
+  </div>
+</main>
+
 <footer>
   <div class="wrap">
     <div class="footer-grid">
@@ -396,6 +439,7 @@
           <li><a href="#" data-page="custom">Personnaliser</a></li>
           <li><a href="#" data-page="contact">Contact</a></li>
           <li><a href="#" data-page="tracking">Suivi</a></li>
+          <li><a href="#" data-page="reviews">Avis</a></li>
           <li><a href="#" data-page="cart">Panier</a></li>
         </ul>
       </div>
@@ -457,6 +501,7 @@ const CONFIG = {
   paypalClientId: "BAAHT1ER616BmTlZUgomxeChaYcsAaJcC1PUqmDZA0JVh-f-keOyhrfAQ_0atic4RDYh0MMpZEaBipCC4I",
   paypalCurrency: "EUR",
   orderEmail: "Tressageailleur@gmail.com",
+  bankDetails: "IBAN FR76 XXXX XXXX XXXX XXXX XXXX XXX (Atelier des Tressages)",
   emailjsPublicKey: "EpvhVNyYGjya6DQt8",
   emailjsServiceId: "service_k8zb55t",
   emailjsTemplateId: "template_zjfb0ba",
@@ -523,6 +568,7 @@ function goTo(page, cat){
   if(page==="shop" && cat){ setFilter(cat); }
   if(page==="cart"){ renderCart(); }
   if(page==="custom"){ renderCustomPage(); }
+  if(page==="reviews"){ loadReviewsList(); }
 }
 document.querySelectorAll("[data-page]").forEach(el=>{
   el.addEventListener("click", e=>{
@@ -579,6 +625,8 @@ function openProductDetail(id){
   const p = PRODUCTS.find(x=>x.id===id);
   if(p.type==="bracelet"){
     detailState = { product:p, fils:7, strandColors: Array(14).fill(DEFAULT_COLOR) };
+  } else if(p.type==="boucle"){
+    detailState = { product:p, colors:[DEFAULT_COLOR], nColors:1 };
   } else {
     detailState = { product:p, color: DEFAULT_COLOR };
   }
@@ -599,6 +647,13 @@ function renderDetailModal(){
       '<div class="fils-row"><span>1</span><input type="range" min="1" max="14" value="' + detailState.fils + '" oninput="detailUpdateFils(this.value)"><span>14</span></div>' +
       '<span class="field-label">Couleur de chaque fil</span>' +
       '<div class="strand-row">' + strandSwatches + '</div>';
+  } else if(p.type==="boucle"){
+    const colorInputs = detailState.colors.map(function(c,i){
+      return '<input type="color" class="color-input-lg" style="margin-right:8px;" value="' + c + '" oninput="detailSetBoucleColor(' + i + ', this.value)">';
+    }).join("");
+    fields = '<span class="field-label">Nombre de couleurs (1 à 3)</span>' +
+      '<div class="option-row">' + [1,2,3].map(n=>'<div class="opt-pill ' + (detailState.nColors===n?'selected':'') + '" onclick="detailSetNColors(' + n + ')">' + n + '</div>').join("") + '</div>' +
+      '<span class="field-label">Couleur' + (detailState.nColors>1?'s':'') + '</span>' + colorInputs;
   } else {
     fields = '<span class="field-label">Couleur</span><input type="color" class="color-input-lg" value="' + detailState.color + '" oninput="detailSetColor(this.value)">';
   }
@@ -620,12 +675,22 @@ function renderDetailModal(){
 function detailSetStrand(i, hex){ detailState.strandColors[i] = hex; renderDetailModal(); }
 function detailUpdateFils(v){ detailState.fils = parseInt(v); renderDetailModal(); }
 function detailSetColor(hex){ detailState.color = hex; renderDetailModal(); }
+function detailSetNColors(n){
+  const colors = detailState.colors.slice(0, n);
+  while(colors.length < n) colors.push(DEFAULT_COLOR);
+  detailState.nColors = n;
+  detailState.colors = colors;
+  renderDetailModal();
+}
+function detailSetBoucleColor(i, hex){ detailState.colors[i] = hex; renderDetailModal(); }
 
 function addDetailToCart(){
   const p = detailState.product;
   let detail;
   if(p.type==="bracelet"){
     detail = detailState.fils + " fils, couleurs personnalisées";
+  } else if(p.type==="boucle"){
+    detail = detailState.nColors + " couleur" + (detailState.nColors>1?"s":"") + " au choix";
   } else {
     detail = "Couleur au choix";
   }
@@ -653,13 +718,13 @@ document.querySelectorAll("#customTabs .filter-btn").forEach(b=>{
 let customState = {};
 function initCustomState(){
   if(customType==="bracelet"){
-    customState = { fils:7, strandColors: Array(14).fill(DEFAULT_COLOR), shape:"Cœur", shapeCustom:"", pendant:false };
+    customState = { fils:7, strandColors: Array(14).fill(DEFAULT_COLOR), shape:"Cœur", shapeCustom:"", pendant:false, bgColor:DEFAULT_COLOR, color2:"#2c241d" };
   } else if(customType==="boucle"){
-    customState = { attache:"Petite", color:DEFAULT_COLOR, relief:false, shape:"Rond", shapeCustom:"", count:1 };
+    customState = { attache:"Petite", colors:[DEFAULT_COLOR], nColors:1, relief:false, shape:"Rond", shapeCustom:"", count:1 };
   } else if(customType==="pendentif"){
     customState = { color:DEFAULT_COLOR, shape:"Rond", shapeCustom:"", relief:false };
   } else if(customType==="porte-cle"){
-    customState = { material:"laine", styleLaine:"Drapeau", pays:"France", styleFimo:"Donut", donutStyle:"Nappé", color:DEFAULT_COLOR };
+    customState = { material:"laine", styleLaine:"Drapeau", pays:"France", paysCustom:"", styleFimo:"Donut", donutStyle:"Nappé", bgColor:DEFAULT_COLOR, color2:"#2c241d" };
   } else if(customType==="coffret"){
     initCoffretState();
   }
@@ -698,8 +763,12 @@ function renderCustomPage(){
       '<span class="field-label">Couleur de chaque fil</span>' +
       '<div class="strand-row">' + strandSwatches + '</div>' +
       '<span class="field-label">Forme du bracelet</span>' +
-      '<div class="option-row">' + ["Cœur","Vague","Mer","Autre"].map(s=>'<div class="opt-pill ' + (customState.shape===s?'selected':'') + '" onclick="customSetShape(\'' + s + '\')">' + s + '</div>').join("") + '</div>' +
+      '<div class="option-row">' + ["Cœur","Vague","Mer","Sport (F1)","Autre"].map(s=>'<div class="opt-pill ' + (customState.shape===s?'selected':'') + '" onclick="customSetShape(\'' + s + '\')">' + s + '</div>').join("") + '</div>' +
       (customState.shape==="Autre" ? '<input type="text" placeholder="Décrivez votre idée" value="' + customState.shapeCustom + '" oninput="customState.shapeCustom=this.value">' : "") +
+      (customState.shape==="Sport (F1)" ?
+        '<span class="field-label">Couleur de fond</span><input type="color" class="color-input-lg" value="' + customState.bgColor + '" oninput="customState.bgColor=this.value; renderCustomPage();">' +
+        '<span class="field-label">Couleur 2 (bande F1)</span><input type="color" class="color-input-lg" value="' + customState.color2 + '" oninput="customState.color2=this.value; renderCustomPage();">'
+        : "") +
       '<span class="field-label">Ajouter un pendentif (+' + EXTRA_PENDANT.toFixed(2) + ' €)</span>' +
       '<div class="option-row">' +
         '<div class="opt-pill ' + (customState.pendant?'selected':'') + '" onclick="customSetPendant(true)">Oui</div>' +
@@ -708,10 +777,15 @@ function renderCustomPage(){
   }
 
   if(customType==="boucle"){
+    const colorInputs = customState.colors.map(function(c,i){
+      return '<input type="color" class="color-input-lg" style="margin-right:8px;" value="' + c + '" oninput="customSetBoucleColor(' + i + ', this.value)">';
+    }).join("");
     body =
       '<span class="field-label">Taille de l\u2019attache</span>' +
       '<div class="option-row">' + ["Petite","Grande"].map(s=>'<div class="opt-pill ' + (customState.attache===s?'selected':'') + '" onclick="customSetAttache(\'' + s + '\')">' + s + '</div>').join("") + '</div>' +
-      '<span class="field-label">Couleur</span><input type="color" class="color-input-lg" value="' + customState.color + '" oninput="customSetColor(this.value)">' +
+      '<span class="field-label">Nombre de couleurs (1 à 3)</span>' +
+      '<div class="option-row">' + [1,2,3].map(n=>'<div class="opt-pill ' + (customState.nColors===n?'selected':'') + '" onclick="customSetNColors(' + n + ')">' + n + '</div>').join("") + '</div>' +
+      '<span class="field-label">Couleur' + (customState.nColors>1?'s':'') + '</span>' + colorInputs +
       '<span class="field-label">Relief (+' + EXTRA_RELIEF.toFixed(2) + ' €)</span>' +
       '<div class="option-row"><div class="opt-pill ' + (customState.relief?'selected':'') + '" onclick="customSetRelief(true)">Oui</div><div class="opt-pill ' + (!customState.relief?'selected':'') + '" onclick="customSetRelief(false)">Non</div></div>' +
       '<span class="field-label">Forme de la boucle</span>' +
@@ -741,6 +815,14 @@ function customUpdateFils(v){ customState.fils = parseInt(v); renderCustomPage()
 function customSetShape(s){ customState.shape = s; renderCustomPage(); }
 function customSetPendant(v){ customState.pendant = v; renderCustomPage(); }
 function customSetAttache(s){ customState.attache = s; renderCustomPage(); }
+function customSetNColors(n){
+  const colors = customState.colors.slice(0, n);
+  while(colors.length < n) colors.push(DEFAULT_COLOR);
+  customState.nColors = n;
+  customState.colors = colors;
+  renderCustomPage();
+}
+function customSetBoucleColor(i, hex){ customState.colors[i] = hex; renderCustomPage(); }
 function customSetColor(hex){ customState.color = hex; renderCustomPage(); }
 function customSetRelief(v){ customState.relief = v; renderCustomPage(); }
 function customSetCount(n){ customState.count = n; renderCustomPage(); }
@@ -748,11 +830,13 @@ function customSetCount(n){ customState.count = n; renderCustomPage(); }
 function customSummary(){
   if(customType==="bracelet"){
     const shape = customState.shape==="Autre" ? (customState.shapeCustom || "forme personnalisée") : customState.shape;
-    return customState.fils + " fils \u00b7 forme " + shape + (customState.pendant ? " \u00b7 avec pendentif" : "");
+    let s = customState.fils + " fils \u00b7 forme " + shape;
+    if(customState.shape==="Sport (F1)") s += " (fond " + customState.bgColor + " / bande " + customState.color2 + ")";
+    return s + (customState.pendant ? " \u00b7 avec pendentif" : "");
   }
   if(customType==="boucle"){
     const shape = customState.shape==="Autre" ? (customState.shapeCustom || "forme personnalisée") : customState.shape;
-    return "Attache " + customState.attache + " \u00b7 " + customState.count + " " + shape + (customState.count>1?"s":"") + (customState.relief ? " \u00b7 relief" : "");
+    return "Attache " + customState.attache + " \u00b7 " + customState.count + " " + shape + (customState.count>1?"s":"") + " \u00b7 " + customState.nColors + " couleur" + (customState.nColors>1?"s":"") + (customState.relief ? " \u00b7 relief" : "");
   }
   const shape = customState.shape==="Autre" ? (customState.shapeCustom || "forme personnalisée") : customState.shape;
   return "Forme " + shape + (customState.relief ? " \u00b7 relief" : "");
@@ -775,37 +859,39 @@ function addCustomToCart(){
 
 /* ---------- coffret cadeau ---------- */
 const COFFRET_FORMULAS = {
-  duo:   { label:"Duo",     bracelets:2, boucles:2 },
-  trio:  { label:"Trio",    bracelets:3, boucles:3 },
-  quatuor:{label:"Quatuor", bracelets:4, boucles:4 }
+  duo:    { label:"Duo",     bracelets:2, boucles:2, porteCles:1 },
+  trio:   { label:"Trio",    bracelets:3, boucles:3, porteCles:2 },
+  quatuor:{ label:"Quatuor", bracelets:4, boucles:4, porteCles:2 }
 };
-const COFFRET_MAX_PIECES = 6;
-const COFFRET_BOX_FEE = 3.00;
+const COFFRET_MAX_PIECES = 8;
+const COFFRET_DISCOUNT = 0.25;
 
 let coffretState = {};
 function initCoffretState(){
   const bracelets = PRODUCTS.filter(p=>p.cat==="bracelets");
   const boucles = PRODUCTS.filter(p=>p.cat==="boucles");
+  const porteCles = PRODUCTS.filter(p=>p.cat==="porte-cles");
   coffretState = {
     formula: "duo",
-    nBracelets: 2, nBoucles: 2,
-    braceletChoices: [bracelets[0].id, bracelets[0].id, bracelets[0].id, bracelets[0].id],
-    boucleChoices: [boucles[0].id, boucles[0].id, boucles[0].id, boucles[0].id],
+    nBracelets: 2, nBoucles: 2, nPorteCles: 1,
+    braceletChoices: Array(4).fill(bracelets[0].id),
+    boucleChoices: Array(4).fill(boucles[0].id),
+    porteCleChoices: Array(4).fill(porteCles[0].id),
     message: ""
   };
 }
 
 function coffretCounts(){
   if(coffretState.formula==="perso"){
-    return { nBracelets: coffretState.nBracelets, nBoucles: coffretState.nBoucles };
+    return { nBracelets: coffretState.nBracelets, nBoucles: coffretState.nBoucles, nPorteCles: coffretState.nPorteCles };
   }
   const f = COFFRET_FORMULAS[coffretState.formula];
-  return { nBracelets: f.bracelets, nBoucles: f.boucles };
+  return { nBracelets: f.bracelets, nBoucles: f.boucles, nPorteCles: f.porteCles };
 }
 
-function coffretPrice(){
+function coffretRawTotal(){
   const counts = coffretCounts();
-  let total = COFFRET_BOX_FEE;
+  let total = 0;
   for(let i=0;i<counts.nBracelets;i++){
     const p = PRODUCTS.find(x=>x.id===coffretState.braceletChoices[i]);
     if(p) total += p.price;
@@ -814,13 +900,22 @@ function coffretPrice(){
     const p = PRODUCTS.find(x=>x.id===coffretState.boucleChoices[i]);
     if(p) total += p.price;
   }
+  for(let i=0;i<counts.nPorteCles;i++){
+    const p = PRODUCTS.find(x=>x.id===coffretState.porteCleChoices[i]);
+    if(p) total += p.price;
+  }
   return total;
+}
+
+function coffretPrice(){
+  return coffretRawTotal() * (1 - COFFRET_DISCOUNT);
 }
 
 function renderCoffretForm(){
   const area = document.getElementById("customFormArea");
   const bracelets = PRODUCTS.filter(p=>p.cat==="bracelets");
   const boucles = PRODUCTS.filter(p=>p.cat==="boucles");
+  const porteCles = PRODUCTS.filter(p=>p.cat==="porte-cles");
   const counts = coffretCounts();
 
   const formulaPills = ["duo","trio","quatuor","perso"].map(function(key){
@@ -835,6 +930,8 @@ function renderCoffretForm(){
       '<div class="option-row">' + [1,2,3,4].map(n=>'<div class="opt-pill ' + (coffretState.nBracelets===n?'selected':'') + '" onclick="coffretSetN(\'nBracelets\',' + n + ')">' + n + '</div>').join("") + '</div>' +
       '<span class="field-label">Nombre de boucles d\u2019oreille (1 à 4)</span>' +
       '<div class="option-row">' + [1,2,3,4].map(n=>'<div class="opt-pill ' + (coffretState.nBoucles===n?'selected':'') + '" onclick="coffretSetN(\'nBoucles\',' + n + ')">' + n + '</div>').join("") + '</div>' +
+      '<span class="field-label">Nombre de porte-clés (1 à 4)</span>' +
+      '<div class="option-row">' + [1,2,3,4].map(n=>'<div class="opt-pill ' + (coffretState.nPorteCles===n?'selected':'') + '" onclick="coffretSetN(\'nPorteCles\',' + n + ')">' + n + '</div>').join("") + '</div>' +
       '<p class="pay-note">Maximum ' + COFFRET_MAX_PIECES + ' pièces au total par coffret.</p>';
   }
 
@@ -854,16 +951,29 @@ function renderCoffretForm(){
     boucleSelects += '<div class="form-row"><label>Boucle d\u2019oreille ' + (i+1) + '</label><select onchange="coffretSetChoice(\'boucleChoices\',' + i + ',this.value)" style="width:100%; padding:12px; border-radius:10px; border:1px solid var(--line); background:var(--cream);">' + options + '</select></div>';
   }
 
+  let porteCleSelects = "";
+  for(let i=0;i<counts.nPorteCles;i++){
+    const options = porteCles.map(function(p){
+      return '<option value="' + p.id + '"' + (coffretState.porteCleChoices[i]===p.id?' selected':'') + '>' + p.name + ' — ' + p.price.toFixed(2) + ' €</option>';
+    }).join("");
+    porteCleSelects += '<div class="form-row"><label>Porte-clé ' + (i+1) + ' (fils ou fimo)</label><select onchange="coffretSetChoice(\'porteCleChoices\',' + i + ',this.value)" style="width:100%; padding:12px; border-radius:10px; border:1px solid var(--line); background:var(--cream);">' + options + '</select></div>';
+  }
+
+  const raw = coffretRawTotal();
+  const discounted = coffretPrice();
+
   area.innerHTML =
     '<span class="field-label">Choisissez une formule</span>' +
     '<div class="option-row" style="margin-bottom:10px;">' + formulaPills + '</div>' +
+    '<p class="pay-note">Duo : 5 pièces (2 bracelets + 2 boucles + 1 porte-clé) · Trio : 8 pièces (3+3+2) · Quatuor : 10 pièces (4+4+2)</p>' +
     personRow +
     '<span class="field-label">Contenu du coffret</span>' +
-    braceletSelects + boucleSelects +
+    braceletSelects + boucleSelects + porteCleSelects +
     '<span class="field-label">Message personnel (optionnel)</span>' +
     '<input type="text" placeholder="Un petit mot pour accompagner votre cadeau…" value="' + coffretState.message + '" oninput="coffretState.message=this.value">' +
-    '<div class="modal-price">' + coffretPrice().toFixed(2) + ' €</div>' +
-    '<p class="pay-note">Comprend la boîte cadeau (' + COFFRET_BOX_FEE.toFixed(2) + ' €) + le prix des pièces choisies.</p>' +
+    '<p class="pay-note" style="margin-top:16px; text-decoration:line-through;">' + raw.toFixed(2) + ' €</p>' +
+    '<div class="modal-price">' + discounted.toFixed(2) + ' €</div>' +
+    '<p class="pay-note">-25% appliqués sur les pièces choisies pour tout coffret.</p>' +
     '<button class="btn btn-primary" style="width:100%; justify-content:center; margin-top:10px;" onclick="addCoffretToCart()">Ajouter au panier</button>';
 }
 
@@ -872,9 +982,10 @@ function coffretSetFormula(key){
   renderCoffretForm();
 }
 function coffretSetN(field, n){
-  const other = field==="nBracelets" ? coffretState.nBoucles : coffretState.nBracelets;
-  if(n + other > COFFRET_MAX_PIECES){
-    showToast("⚠️","Limite atteinte","Un coffret contient au maximum " + COFFRET_MAX_PIECES + " pièces au total. Réduisez l'autre quantité pour choisir " + n + " ici.");
+  const fields = ["nBracelets","nBoucles","nPorteCles"];
+  const others = fields.filter(f=>f!==field).reduce((s,f)=>s+coffretState[f],0);
+  if(n + others > COFFRET_MAX_PIECES){
+    showToast("⚠️","Limite atteinte","Un coffret contient au maximum " + COFFRET_MAX_PIECES + " pièces au total. Réduisez une autre quantité pour choisir " + n + " ici.");
     return;
   }
   coffretState[field] = n;
@@ -897,8 +1008,13 @@ function addCoffretToCart(){
     const p = PRODUCTS.find(x=>x.id===coffretState.boucleChoices[i]);
     if(p) boucleNames.push(p.name);
   }
+  const porteCleNames = [];
+  for(let i=0;i<counts.nPorteCles;i++){
+    const p = PRODUCTS.find(x=>x.id===coffretState.porteCleChoices[i]);
+    if(p) porteCleNames.push(p.name);
+  }
   const formulaLabel = coffretState.formula==="perso" ? "Personnalisé" : COFFRET_FORMULAS[coffretState.formula].label;
-  let detail = braceletNames.join(", ") + " · " + boucleNames.join(", ");
+  let detail = braceletNames.join(", ") + " · " + boucleNames.join(", ") + " · " + porteCleNames.join(", ") + " · -25%";
   if(coffretState.message) detail += " · Message : \u00ab " + coffretState.message + " \u00bb";
 
   cart.push({
@@ -915,7 +1031,7 @@ function addCoffretToCart(){
 }
 
 /* ---------- porte-clé sur mesure ---------- */
-const FLAG_COUNTRIES = ["France","Espagne","Portugal","Brésil","Angleterre","Japon","Italie","Argentine"];
+const FLAG_COUNTRIES = ["France","Espagne","Portugal","Brésil","Angleterre","Japon","Italie","Argentine","Autre"];
 const DONUT_STYLES = ["Nappé","Pépite","Nappée + pépite","Nature","Sucrée"];
 const FIMO_STYLES = ["Donut","Patte de chien","Pieuvre"];
 const LAINE_STYLES = ["Drapeau","Logo Nike"];
@@ -934,6 +1050,10 @@ function renderPorteCleForm(){
       '<div class="opt-pill ' + (customState.material==="fimo"?'selected':'') + '" onclick="porteCleSetMaterial(\'fimo\')">Fimo</div>' +
     '</div>';
 
+  const twoColorFields =
+    '<span class="field-label">Couleur de fond</span><input type="color" class="color-input-lg" value="' + customState.bgColor + '" oninput="porteCleSetBgColor(this.value)">' +
+    '<span class="field-label">Couleur 2</span><input type="color" class="color-input-lg" value="' + customState.color2 + '" oninput="porteCleSetColor2(this.value)">';
+
   if(customState.material==="laine"){
     body += '<span class="field-label">Style</span><div class="option-row">' +
       LAINE_STYLES.map(s=>'<div class="opt-pill ' + (customState.styleLaine===s?'selected':'') + '" onclick="porteCleSetStyleLaine(\'' + s + '\')">' + s + '</div>').join("") +
@@ -942,8 +1062,11 @@ function renderPorteCleForm(){
       body += '<span class="field-label">Pays</span><div class="option-row">' +
         FLAG_COUNTRIES.map(c=>'<div class="opt-pill ' + (customState.pays===c?'selected':'') + '" onclick="porteCleSetPays(\'' + c + '\')">' + c + '</div>').join("") +
         '</div>';
+      if(customState.pays==="Autre"){
+        body += '<input type="text" placeholder="Quel pays / drapeau souhaitez-vous ?" value="' + customState.paysCustom + '" oninput="customState.paysCustom=this.value">';
+      }
     } else {
-      body += '<span class="field-label">Couleur</span><input type="color" class="color-input-lg" value="' + customState.color + '" oninput="porteCleSetColor(this.value)">';
+      body += twoColorFields;
     }
   } else {
     body += '<span class="field-label">Style</span><div class="option-row">' +
@@ -952,9 +1075,9 @@ function renderPorteCleForm(){
     if(customState.styleFimo==="Donut"){
       body += '<span class="field-label">Choix du glaçage</span><div class="option-row">' +
         DONUT_STYLES.map(s=>'<div class="opt-pill ' + (customState.donutStyle===s?'selected':'') + '" onclick="porteCleSetDonutStyle(\'' + s + '\')">' + s + '</div>').join("") +
-        '</div>';
+        '</div>' + twoColorFields;
     } else {
-      body += '<span class="field-label">Couleur</span><input type="color" class="color-input-lg" value="' + customState.color + '" oninput="porteCleSetColor(this.value)">';
+      body += twoColorFields;
     }
   }
 
@@ -968,15 +1091,19 @@ function porteCleSetStyleLaine(s){ customState.styleLaine = s; renderPorteCleFor
 function porteCleSetStyleFimo(s){ customState.styleFimo = s; renderPorteCleForm(); }
 function porteCleSetPays(p){ customState.pays = p; renderPorteCleForm(); }
 function porteCleSetDonutStyle(s){ customState.donutStyle = s; renderPorteCleForm(); }
-function porteCleSetColor(hex){ customState.color = hex; renderPorteCleForm(); }
+function porteCleSetBgColor(hex){ customState.bgColor = hex; renderPorteCleForm(); }
+function porteCleSetColor2(hex){ customState.color2 = hex; renderPorteCleForm(); }
 
 function porteCleSummary(){
   if(customState.material==="laine"){
-    if(customState.styleLaine==="Drapeau") return "Laine \u00b7 Drapeau " + customState.pays;
-    return "Laine \u00b7 " + customState.styleLaine;
+    if(customState.styleLaine==="Drapeau"){
+      const pays = customState.pays==="Autre" ? (customState.paysCustom || "pays personnalisé") : customState.pays;
+      return "Laine \u00b7 Drapeau " + pays;
+    }
+    return "Laine \u00b7 " + customState.styleLaine + " (fond " + customState.bgColor + " / " + customState.color2 + ")";
   }
-  if(customState.styleFimo==="Donut") return "Fimo \u00b7 Donut " + customState.donutStyle;
-  return "Fimo \u00b7 " + customState.styleFimo;
+  if(customState.styleFimo==="Donut") return "Fimo \u00b7 Donut " + customState.donutStyle + " (fond " + customState.bgColor + " / " + customState.color2 + ")";
+  return "Fimo \u00b7 " + customState.styleFimo + " (fond " + customState.bgColor + " / " + customState.color2 + ")";
 }
 
 function addPorteCleToCart(){
@@ -995,6 +1122,19 @@ function addPorteCleToCart(){
 }
 
 /* ---------- cart ---------- */
+function showOrderConfirmation(orderNumber, total){
+  document.getElementById("confNumber").textContent = orderNumber;
+  document.getElementById("confTotal").textContent = total.toFixed(2) + " €";
+  document.getElementById("page-confirmation").dataset.orderNumber = orderNumber;
+  goTo("confirmation");
+}
+function goToTrackingWithOrder(){
+  const num = document.getElementById("page-confirmation").dataset.orderNumber || "";
+  goTo("tracking");
+  const input = document.getElementById("trackingInput");
+  if(input){ input.value = num; lookupOrder(); }
+}
+
 function updateCartBadge(){
   document.getElementById("cartBadge").textContent = cart.reduce((s,i)=>s+i.qty,0);
 }
@@ -1042,9 +1182,43 @@ function renderCart(){
     '<span class="field-label" style="margin-top:24px;">Paiement sécurisé</span>' +
     '<div id="paypal-button-container"></div>' +
     '<p class="pay-note">Le paiement est vérifié directement par PayPal avant que votre commande ne soit confirmée. Une fois le paiement reçu sur notre compte professionnel, vous recevez un email de confirmation et nous démarrons la fabrication.</p>' +
+    '<span class="field-label" style="margin-top:24px;">Ou par virement bancaire</span>' +
+    '<button class="btn btn-outline" style="width:100%; justify-content:center;" onclick="startManualPayment()">Payer par virement</button>' +
+    '<p class="pay-note">Aucun compte PayPal ni carte nécessaire. Vous recevez nos coordonnées bancaires et un numéro de commande ; nous démarrons la fabrication dès réception du virement.</p>' +
     '</div></div>';
 
   renderPaypalButton();
+}
+
+function startManualPayment(){
+  const orderNumber = generateOrderNumber();
+  const grand = cartGrandTotal();
+  registerManualOrder(orderNumber);
+  cart = [];
+  updateCartBadge();
+  showOrderConfirmation(orderNumber, grand);
+  showToast(
+    "🏦",
+    "Virement à effectuer",
+    "Merci d'effectuer un virement de " + grand.toFixed(2) + " € à : " + CONFIG.bankDetails + ", en indiquant le numéro <strong>" + orderNumber + "</strong> en référence, puis de nous écrire à " + CONFIG.orderEmail + " pour confirmer. La fabrication démarre dès réception."
+  );
+}
+
+function registerManualOrder(orderNumber){
+  if(CONFIG.jsonbinBinId === "VOTRE_BIN_ID_JSONBIN") return;
+  const record = {
+    status: "En attente de virement",
+    date: new Date().toISOString(),
+    email: "",
+    total: cartGrandTotal().toFixed(2),
+    items: cart.map(function(i){ return i.name + " (" + i.detail + ") x" + i.qty; }).join("; ")
+  };
+  jsonbinGet().then(function(orders){
+    orders[orderNumber] = record;
+    return jsonbinPut(orders);
+  }).catch(function(err){
+    console.error("Impossible d'enregistrer la commande (virement) :", err);
+  });
 }
 
 function changeQty(uid, delta){
@@ -1096,12 +1270,12 @@ function renderPaypalButton(){
             return;
           }
           const orderNumber = generateOrderNumber();
+          const grand = cartGrandTotal();
           registerOrder(orderNumber, details);
           sendConfirmationEmail(details, orderNumber);
-          showToast("✅","Commande confirmée","Merci " + (details.payer.name.given_name || "") + " ! Votre paiement a bien été reçu et validé par PayPal. Votre numéro de suivi est " + orderNumber + ". Un email de confirmation vous a été envoyé, et nous démarrons la fabrication de votre commande.");
           cart = [];
           updateCartBadge();
-          renderCart();
+          showOrderConfirmation(orderNumber, grand);
         }).catch(function(err){
           console.error("Erreur de capture PayPal :", err);
           showToast("⚠️","Paiement non abouti","Le paiement n'a pas pu être confirmé par PayPal. Aucune commande n'a été validée et aucun montant ne devrait avoir été débité. Vous pouvez réessayer.");
@@ -1133,7 +1307,7 @@ function sendConfirmationEmail(details, orderNumber){
 }
 
 /* ---------- suivi de commande (JSONBin.io) ---------- */
-const TRACKING_STEPS = ["Commande reçue","En fabrication","Expédiée","Livrée"];
+const TRACKING_STEPS = ["En attente de virement","Commande reçue","En fabrication","Expédiée","Livrée"];
 
 function generateOrderNumber(){
   const rand = Math.floor(1000 + Math.random()*9000);
@@ -1144,35 +1318,47 @@ function jsonbinUrl(){
   return "https://api.jsonbin.io/v3/b/" + CONFIG.jsonbinBinId;
 }
 
-function jsonbinGet(masterKey){
+function jsonbinGetFull(masterKey){
   return fetch(jsonbinUrl() + "/latest", {
     headers: { "X-Master-Key": masterKey || CONFIG.jsonbinMasterKey }
   }).then(function(r){
     if(!r.ok) throw new Error("Lecture impossible (" + r.status + ")");
     return r.json();
   }).then(function(json){
-    return (json.record && json.record.orders) ? json.record.orders : {};
+    const record = json.record || {};
+    return { orders: record.orders || {}, reviews: record.reviews || {} };
   });
 }
 
-function jsonbinPut(orders, masterKey){
+function jsonbinPutFull(full, masterKey){
   return fetch(jsonbinUrl(), {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
       "X-Master-Key": masterKey || CONFIG.jsonbinMasterKey
     },
-    body: JSON.stringify({ orders: orders })
+    body: JSON.stringify(full)
   }).then(function(r){
     if(!r.ok) throw new Error("Écriture impossible (" + r.status + ")");
     return r.json();
   });
 }
 
+function jsonbinGet(masterKey){
+  return jsonbinGetFull(masterKey).then(function(full){ return full.orders; });
+}
+
+function jsonbinPut(orders, masterKey){
+  return jsonbinGetFull(masterKey).then(function(full){
+    full.orders = orders;
+    return jsonbinPutFull(full, masterKey);
+  });
+}
+
 function registerOrder(orderNumber, details){
   if(CONFIG.jsonbinBinId === "VOTRE_BIN_ID_JSONBIN") return;
   const record = {
-    status: TRACKING_STEPS[0],
+    status: TRACKING_STEPS[1],
     date: new Date().toISOString(),
     email: details.payer.email_address || "",
     total: cartGrandTotal().toFixed(2),
@@ -1184,6 +1370,86 @@ function registerOrder(orderNumber, details){
   }).catch(function(err){
     console.error("Impossible d'enregistrer le suivi de commande :", err);
   });
+}
+
+/* ---------- avis clients ---------- */
+let reviewStars = 5;
+function setReviewStars(n){
+  reviewStars = n;
+  document.querySelectorAll("#reviewStars .opt-pill").forEach(function(el){
+    el.classList.toggle("selected", parseInt(el.dataset.star)===n);
+  });
+}
+
+function submitReview(){
+  const orderNum = document.getElementById("reviewOrderInput").value.trim().toUpperCase();
+  const name = document.getElementById("reviewNameInput").value.trim();
+  const comment = document.getElementById("reviewCommentInput").value.trim();
+  const result = document.getElementById("reviewSubmitResult");
+
+  if(!orderNum || !name || !comment){
+    result.innerHTML = '<p class="pay-note">Merci de remplir le numéro de commande, votre prénom et votre avis.</p>';
+    return;
+  }
+  if(CONFIG.jsonbinBinId === "VOTRE_BIN_ID_JSONBIN"){
+    result.innerHTML = '<p class="pay-note">Le suivi de commande n\'est pas encore configuré sur ce site.</p>';
+    return;
+  }
+  result.innerHTML = '<p class="pay-note">Vérification…</p>';
+
+  jsonbinGetFull().then(function(full){
+    const order = full.orders[orderNum];
+    if(!order){
+      result.innerHTML = '<p class="pay-note">Numéro de commande introuvable. Vérifiez la saisie.</p>';
+      return;
+    }
+    if(order.status !== "Livrée"){
+      result.innerHTML = '<p class="pay-note">Les avis ne sont ouverts qu\'une fois la commande marquée comme livrée. Statut actuel : ' + order.status + '.</p>';
+      return;
+    }
+    full.reviews[orderNum] = { name: name, stars: reviewStars, comment: comment, date: new Date().toISOString() };
+    return jsonbinPutFull(full).then(function(){
+      result.innerHTML = '<p class="pay-note">Merci pour votre avis ! 🎉</p>';
+      document.getElementById("reviewCommentInput").value = "";
+      loadReviewsList();
+    });
+  }).catch(function(err){
+    result.innerHTML = '<p class="pay-note">Erreur lors de l\'envoi de l\'avis. Réessayez plus tard.</p>';
+    console.error(err);
+  });
+}
+
+function loadReviewsList(){
+  const list = document.getElementById("reviewsList");
+  if(!list) return;
+  if(CONFIG.jsonbinBinId === "VOTRE_BIN_ID_JSONBIN"){
+    list.innerHTML = '';
+    return;
+  }
+  jsonbinGetFull().then(function(full){
+    renderReviewsList(full.reviews);
+  }).catch(function(err){
+    console.error(err);
+  });
+}
+
+function renderReviewsList(reviews){
+  const list = document.getElementById("reviewsList");
+  const keys = Object.keys(reviews).sort(function(a,b){ return new Date(reviews[b].date) - new Date(reviews[a].date); });
+  if(keys.length===0){
+    list.innerHTML = '<p class="pay-note" style="text-align:center;">Pas encore d\'avis — soyez le premier !</p>';
+    return;
+  }
+  list.innerHTML = '<h3>Ce que nos clients en pensent</h3>' + keys.map(function(k){
+    const r = reviews[k];
+    const stars = "★".repeat(r.stars) + "☆".repeat(5-r.stars);
+    return '<div class="cart-item" style="display:block;">' +
+      '<p style="color:var(--terracotta); margin:0 0 6px; font-size:1.1rem;">' + stars + '</p>' +
+      '<h4>' + r.name + '</h4>' +
+      '<p class="meta">' + r.comment + '</p>' +
+      '<p class="meta" style="font-size:.7rem;">' + new Date(r.date).toLocaleDateString("fr-FR") + '</p>' +
+      '</div>';
+  }).join("");
 }
 
 function trackingStepsHtml(currentStatus){
