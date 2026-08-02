@@ -748,7 +748,9 @@ const PRODUCTS = [
     choiceOptions:[{label:"Fond rose"},{label:"Fond rouge"}]},
   {id:"pc-stitch", cat:"porte-cles", name:"Porte-clé Stitch", price:15.99, img:null, gradient:"linear-gradient(135deg,#3b6ea5,#7fb3d5)", type:"porte-cle", desc:"Porte-clé tressé en laine, motif Stitch.", color:"bleu", material:"laine"},
   {id:"pc-tortue", cat:"porte-cles", name:"Porte-clé Tortue", price:11.99, img:null, gradient:"linear-gradient(135deg,#5a8f5a,#a3c98f)", type:"porte-cle", desc:"Porte-clé tressé en laine, motif tortue.", color:"vert", material:"laine"},
-  {id:"pc-papillon", cat:"porte-cles", name:"Porte-clé Papillon", price:12.99, img:null, gradient:"linear-gradient(135deg,#9a6bab,#e0a6c9)", type:"porte-cle", desc:"Porte-clé tressé en laine, motif papillon.", color:"violet", material:"laine"}
+  {id:"pc-papillon", cat:"porte-cles", name:"Porte-clé Papillon", price:12.99, img:null, gradient:"linear-gradient(135deg,#9a6bab,#e0a6c9)", type:"porte-cle", desc:"Porte-clé tressé en laine, motif papillon.", color:"violet", material:"laine"},
+
+  {id:"test-paiement", cat:"test", name:"Test", price:0.10, img:null, gradient:"linear-gradient(135deg,#c1876a,#e8d5c4)", type:"test", desc:"Article de test à 0,10 € pour vérifier que le paiement fonctionne. Livraison offerte sur cet article. Ne pas montrer aux clients.", color:"beige", freeShipping:true}
 ];
 
 const EXTRA_PENDANT = 2.99;
@@ -834,7 +836,7 @@ document.querySelectorAll("#filters .filter-btn").forEach(b=>{
 });
 
 function catLabel(c){
-  return {bracelets:"Bracelet brésilien", boucles:"Boucle d'oreille", "porte-cles":"Porte-clé"}[c] || c;
+  return {bracelets:"Bracelet brésilien", boucles:"Boucle d'oreille", "porte-cles":"Porte-clé", test:"Test paiement"}[c] || c;
 }
 function bgStyleFor(p){
   return p.img ? ("background-image:url(" + IMG[p.img] + "); background-size:cover; background-position:center; background-repeat:no-repeat;") : ("background:" + p.gradient + ";");
@@ -889,7 +891,7 @@ function renderShop(){
     let stockBadge = '<span class="badge">Personnalisable</span>';
     if(outOfStock) stockBadge = '<span class="badge" style="color:#a2573b;">Épuisé</span>';
     else if(lowStock) stockBadge = '<span class="badge" style="color:#a2573b;">Plus que ' + qty + ' en stock</span>';
-    return '<div class="product-card" onclick="' + (outOfStock ? '' : "openProductDetail('" + p.id + "')") + '" style="' + (outOfStock ? 'opacity:.55;' : '') + '">' +
+    return '<div class="product-card" onclick="' + (outOfStock ? '' : (p.type==="test" ? "addTestProductToCart()" : "openProductDetail('" + p.id + "')")) + '" style="' + (outOfStock ? 'opacity:.55;' : '') + '">' +
       '<div class="product-img" style="' + bgStyleFor(p) + '">' + stockBadge + '</div>' +
       '<div class="product-body">' +
         '<span class="product-cat">' + catLabel(p.cat) + '</span>' +
@@ -897,6 +899,8 @@ function renderShop(){
         '<div class="product-price">' + priceLabel + '</div>' +
         (outOfStock ?
           '<button class="btn btn-outline" disabled style="width:100%; justify-content:center; opacity:.6; cursor:not-allowed;">Épuisé</button>' :
+          p.type==="test" ?
+          '<button class="btn btn-dark" onclick="event.stopPropagation(); addTestProductToCart()">Ajouter au panier</button>' :
           '<button class="btn btn-dark" onclick="event.stopPropagation(); openProductDetail(\'' + p.id + '\')">Voir la fiche</button>') +
       '</div>' +
     '</div>';
@@ -905,6 +909,13 @@ function renderShop(){
 
 /* ---------- product detail modal (shop) ---------- */
 let detailState = {};
+
+function addTestProductToCart(){
+  const p = PRODUCTS.find(x=>x.id==="test-paiement");
+  cart.push({ uid: Date.now()+Math.random(), name:p.name, cat:p.cat, img:p.img, gradient:p.gradient, qty:1, price:p.price, detail:"Article de test — livraison offerte", freeShipping:true });
+  updateCartBadge();
+  goTo("cart");
+}
 
 function openProductDetail(id){
   const p = PRODUCTS.find(x=>x.id===id);
@@ -1546,6 +1557,7 @@ function cartItemCount(){ return cart.reduce((s,i)=>s+i.qty,0); }
 function shippingCost(){
   const n = cartItemCount();
   if(n<=0) return 0;
+  if(cart.some(i => i.freeShipping)) return 0;
   if(cartTotal() >= FREE_SHIPPING_THRESHOLD) return 0;
   const minCost = 2.99, maxCost = 12.99, maxItems = 6;
   if(n>=maxItems) return maxCost;
@@ -2136,3 +2148,4 @@ document.getElementById("adminPassInput").addEventListener("keydown", function(e
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 </body>
 </html>
+
